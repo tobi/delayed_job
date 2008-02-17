@@ -1,0 +1,103 @@
+Delayed::Job
+============
+
+Delated_job (or DJ) encapsulates the common pattern of asynchronously executing longer tasks in the background. 
+
+It is a direct extraction from Shopify where the job table is responsible for a multitude of core tasks. Amongst those tasks are:
+
+* sending massive newsletters
+* image resizing
+* http downloads
+* updating smart collections
+* updating solr, our search server, after product changes
+* batch imports 
+* spam checks 
+            
+== Setup == 
+            
+The library evolves around a delayed_jobs table which looks as follows: 
+
+  create_table :delayed_jobs, :force => true do |table|
+    table.integer :priority, :default => 0
+    table.integer :attempts, :default => 0
+    table.text :handler
+    table.string :last_error
+    table.datetime :run_at   
+    table.timestamps    
+  end        
+  
+== Usage == 
+
+Jobs are simple ruby objects with a method called perform. Any object which responds to perform can be stuffed into the jobs table.
+Job objects are serialized to yaml so that they can later be resurrected by the job runner. 
+
+  class NewsletterJob < Struct.new(:text, :emails)
+    def perform
+      emails.each { |e| NewsletterMailer.deliver_text_to_email(text, e) }
+    end    
+  end  
+  
+  Delayed::Job.enqueue NewsletterJob.new('lorem ipsum...', Customers.find(:all).collect(&:email))
+           
+There is also a second way to get jobs in the queue: send_later. 
+
+  
+  BatchImporter.new(Shop.find(1)).send_later(:import_massive_csv, massive_csv)                                                    
+  
+
+This will simply create a Delayed::PerformableMethod job in the jobs table which serializes all the parameters you pass to it. There are some special smarts for active record objects
+which are stored as their text representation and loaded from the database fresh when the job is actually run later.
+                                                                                                                              
+                                                                                                                    
+== Running the tasks ==        
+
+You can invoke rake jobs:work which will start working off jobs. You can cancel the rake task by CTRL-C. 
+
+At Shopify we run the the tasks from a simple script/job_runner which is being invoked by runnit: 
+                                           
+  #!/usr/bin/env ruby
+  require File.dirname(__FILE__) + '/../config/environment'
+
+  SLEEP = 15
+  RESTART_AFTER = 1000
+
+  trap('TERM') { puts 'Exiting...'; $exit = true }
+  trap('INT')  { puts 'Exiting...'; $exit = true }
+                
+  # this script dies after several runs to prevent memory leaks. 
+  # runnit will immediately start it again. 
+  count, runs_left = 0, RESTART_AFTER
+
+  loop do
+  
+    count = 0
+                      
+    # this requires the locking plugin, also from jadedPixel
+    ActiveRecord::base.aquire_lock("jobs table worker", 10) do
+      puts 'got lock'
+    
+      realtime = Benchmark.realtime do 
+        count = Delayed::Job.work_off      
+      end
+    end
+  
+    runs_left -= 1
+  
+    break if $exit
+  
+    if count.zero? 
+      sleep(SLEEP)
+    else
+      status = "#{count} jobs completed at %.2f j/s ..." % [count / realtime]
+      RAILS_DEFAULT_LOGGER.info status
+      puts status
+    end
+    
+    if $exit or runs_left <= 0
+      break 
+    end
+  end     
+  
+== Todo == 
+                                                                                                                           
+Work out a locking mechanism which would allow several job runners to run at the same time, spreading the load between them.
