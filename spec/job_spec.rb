@@ -53,7 +53,7 @@ describe Delayed::Job do
     SimpleJob.runs.should == 1   
   end                         
   
-  it "should re-schedule by about 5 minutes when it fails to execute properly" do            
+  it "should re-schedule by about 1 second at first and increment this more and more minutes when it fails to execute properly" do            
     Delayed::Job.enqueue ErrorJob.new    
     runner = Delayed::Job.work_off(1)        
     runner.success.should == 0
@@ -62,7 +62,7 @@ describe Delayed::Job do
     job = Delayed::Job.find(:first)
     job.last_error.should == 'did not work'
     job.attempts.should == 1
-    job.run_at.should > Time.now + 4.minutes
+    job.run_at.should > Time.now  
     job.run_at.should < Time.now + 6.minutes    
   end                    
   

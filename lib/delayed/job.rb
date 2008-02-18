@@ -67,7 +67,7 @@ module Delayed
   
     def reshedule(message)    
       self.attempts  += 1
-      self.run_at     = self.class.time_now + 5.minutes
+      self.run_at     = self.class.time_now + (attempts ** 4).seconds
       self.last_error = message
       save!
     end
