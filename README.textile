@@ -1,5 +1,4 @@
-Delayed::Job
-============
+h1. Delayed::Job
 
 Delated_job (or DJ) encapsulates the common pattern of asynchronously executing longer tasks in the background. 
 
@@ -13,13 +12,12 @@ It is a direct extraction from Shopify where the job table is responsible for a 
 * batch imports 
 * spam checks 
 
-== Changes == 
+h2. Changes
                    
-1.5 Job runners can now be run in parallel. Two new database columns are needed: locked_until and locked_by. This allows us 
-    to use pessimistic locking, which enables us to run as many worker processes as we need to speed up queue processing.
-1.0 Initial release
+* 1.5 Job runners can now be run in parallel. Two new database columns are needed: locked_until and locked_by. This allows us to use pessimistic locking, which enables us to run as many worker processes as we need to speed up queue processing.
+* 1.0 Initial release
             
-== Setup == 
+h2. Setup
             
 The library evolves around a delayed_jobs table which looks as follows: 
 
@@ -34,7 +32,7 @@ The library evolves around a delayed_jobs table which looks as follows:
     table.timestamps    
   end        
   
-== Usage == 
+h2. Usage
 
 Jobs are simple ruby objects with a method called perform. Any object which responds to perform can be stuffed into the jobs table.
 Job objects are serialized to yaml so that they can later be resurrected by the job runner. 
@@ -57,7 +55,7 @@ This will simply create a Delayed::PerformableMethod job in the jobs table which
 which are stored as their text representation and loaded from the database fresh when the job is actually run later.
                                                                                                                               
                                                                                                                     
-== Running the tasks ==        
+h2. Running the tasks
 
 You can invoke rake jobs:work which will start working off jobs. You can cancel the rake task by CTRL-C. 
 
@@ -97,8 +95,6 @@ At Shopify we run the the tasks from a simple script/job_runner which is being i
     
       break if $exit
     end
-
   ensure 
     Delayed::Job.clear_locks!
   end  
-
