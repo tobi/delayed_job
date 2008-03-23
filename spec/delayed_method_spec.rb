@@ -48,20 +48,18 @@ describe 'random ruby objects' do
     RandomRubyObject.new.send_later(:say_hello)
                                
     Delayed::Job.count.should == 1        
-    Delayed::Job.peek.perform.should == 'hello'
   end
   
-  it "should store the object as string if its an active record" do
-    
+  it "should store the object as string if its an active record" do    
     story = Story.create :text => 'Once upon...'     
     story.send_later(:tell)                      
     
-    job =  Delayed::Job.peek 
-    job.handler.class.should   == Delayed::PerformableMethod
-    job.handler.object.should  == 'AR:Story:1'
-    job.handler.method.should  == :tell
-    job.handler.args.should    == []   
-    job.perform.should == 'Once upon...'
+    job =  Delayed::Job.find(:first)
+    job.payload_object.class.should   == Delayed::PerformableMethod
+    job.payload_object.object.should  == 'AR:Story:1'
+    job.payload_object.method.should  == :tell
+    job.payload_object.args.should    == []   
+    job.payload_object.perform.should == 'Once upon...'
   end 
   
   it "should store arguments as string if they an active record" do
@@ -71,11 +69,11 @@ describe 'random ruby objects' do
     reader = StoryReader.new 
     reader.send_later(:read, story)
     
-    job =  Delayed::Job.peek 
-    job.handler.class.should   == Delayed::PerformableMethod
-    job.handler.method.should  == :read
-    job.handler.args.should    == ['AR:Story:1']
-    job.perform.should == 'Epilog: Once upon...'     
+    job =  Delayed::Job.find(:first)
+    job.payload_object.class.should   == Delayed::PerformableMethod
+    job.payload_object.method.should  == :read
+    job.payload_object.args.should    == ['AR:Story:1']
+    job.payload_object.perform.should == 'Epilog: Once upon...'     
   end
   
 end

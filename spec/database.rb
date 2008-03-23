@@ -12,11 +12,13 @@ def reset_db
   ActiveRecord::Schema.define do
 
     create_table :delayed_jobs, :force => true do |table|
-      table.integer :priority, :default => 0
-      table.integer :attempts, :default => 0
-      table.text :handler
-      table.string :last_error
+      table.integer  :priority, :default => 0
+      table.integer  :attempts, :default => 0
+      table.text     :handler
+      table.string   :last_error
       table.datetime :run_at   
+      table.datetime :locked_until   
+      table.string   :locked_by   
       table.timestamps    
     end
 

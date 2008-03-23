@@ -12,6 +12,12 @@ It is a direct extraction from Shopify where the job table is responsible for a 
 * updating solr, our search server, after product changes
 * batch imports 
 * spam checks 
+
+== Changes == 
+                   
+1.5 Job runners can now be run in parallel. Two new database columns are needed: locked_until and locked_by. This allows us 
+    to use pessimistic locking, which enables us to run as many worker processes as we need to speed up queue processing.
+1.0 Initial release
             
 == Setup == 
             
@@ -22,7 +28,9 @@ The library evolves around a delayed_jobs table which looks as follows:
     table.integer :attempts, :default => 0
     table.text :handler
     table.string :last_error
-    table.datetime :run_at   
+    table.datetime :run_at                                                                                               
+    table.datetime :locked_until   
+    table.string   :locked_by       
     table.timestamps    
   end        
   
@@ -58,46 +66,39 @@ At Shopify we run the the tasks from a simple script/job_runner which is being i
   #!/usr/bin/env ruby
   require File.dirname(__FILE__) + '/../config/environment'
 
-  SLEEP = 15
-  RESTART_AFTER = 1000
+  SLEEP = 5
 
   trap('TERM') { puts 'Exiting...'; $exit = true }
   trap('INT')  { puts 'Exiting...'; $exit = true }
-                
-  # this script dies after several runs to prevent memory leaks. 
-  # runnit will immediately start it again. 
-  count, runs_left = 0, RESTART_AFTER
 
-  loop do
+  puts "*** Staring job worker #{Delayed::Job.worker_name}"
+
+  begin
+
+    loop do  
+      result = nil                                 
   
-    count = 0
-                      
-    # this requires the locking plugin, also from jadedPixel
-    ActiveRecord::base.aquire_lock("jobs table worker", 10) do
-      puts 'got lock'
+      realtime = Benchmark.realtime do  
+        result = Delayed::Job.work_off      
+      end                                                                          
+  
+      count = result.sum
     
-      realtime = Benchmark.realtime do 
-        count = Delayed::Job.work_off      
+      break if $exit
+  
+      if count.zero? 
+        sleep(SLEEP)
+        puts 'Waiting for more jobs...'
+      else
+        status = "#{count} jobs processed at %.4f j/s, %d failed ..." % [count / realtime, result.last]
+        RAILS_DEFAULT_LOGGER.info status
+        puts status
       end
-    end
-  
-    runs_left -= 1
-  
-    break if $exit
-  
-    if count.zero? 
-      sleep(SLEEP)
-    else
-      status = "#{count} jobs completed at %.2f j/s ..." % [count / realtime]
-      RAILS_DEFAULT_LOGGER.info status
-      puts status
-    end
     
-    if $exit or runs_left <= 0
-      break 
+      break if $exit
     end
-  end     
-  
-== Todo == 
-                                                                                                                           
-Work out a locking mechanism which would allow several job runners to run at the same time, spreading the load between them.
+
+  ensure 
+    Delayed::Job.clear_locks!
+  end  
+

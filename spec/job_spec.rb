@@ -1,6 +1,5 @@
 require File.dirname(__FILE__) + '/database'
 
-
 class SimpleJob
   cattr_accessor :runs; self.runs = 0      
   def perform; @@runs += 1; end
@@ -30,25 +29,11 @@ describe Delayed::Job do
     Delayed::Job.count.should == 1
   end
   
-  it "should return nil when peeking on empty table" do      
-    Delayed::Job.peek.should == nil
-  end
-  
-  it "should return a job when peeking a table with jobs in it" do
-    Delayed::Job.enqueue SimpleJob.new      
-    Delayed::Job.peek.class.should == Delayed::Job
-  end              
-
-  it "should return an array of jobs when peek is called with a count larger than zero" do
-    Delayed::Job.enqueue SimpleJob.new      
-    Delayed::Job.peek(2).class.should == Array
-  end              
-  
   it "should call perform on jobs when running work_off" do        
     SimpleJob.runs.should == 0
         
     Delayed::Job.enqueue SimpleJob.new    
-    Delayed::Job.work_off(1)    
+    Delayed::Job.work_off
     
     SimpleJob.runs.should == 1   
   end                         
@@ -56,9 +41,7 @@ describe Delayed::Job do
   it "should re-schedule by about 1 second at first and increment this more and more minutes when it fails to execute properly" do            
     Delayed::Job.enqueue ErrorJob.new    
     runner = Delayed::Job.work_off(1)        
-    runner.success.should == 0
-    runner.failure.should == 1               
-    
+
     job = Delayed::Job.find(:first)
     job.last_error.should == 'did not work'
     job.attempts.should == 1
@@ -71,7 +54,7 @@ describe Delayed::Job do
     job = Delayed::Job.new 
     job['handler'] = "--- !ruby/object:JobThatDoesNotExist {}"
 
-    lambda { job.perform }.should raise_error(Delayed::DeserializationError)    
+    lambda { job.payload_object.perform }.should raise_error(Delayed::DeserializationError)    
   end
 
   it "should try to load the class when it is unknown at the time of the deserialization" do
@@ -80,14 +63,14 @@ describe Delayed::Job do
 
     job.should_receive(:attempt_to_load).with('JobThatDoesNotExist').and_return(true)
      
-    lambda { job.perform }.should raise_error(Delayed::DeserializationError)    
+    lambda { job.payload_object.perform }.should raise_error(Delayed::DeserializationError)    
   end                  
   
   it "should try include the namespace when loading unknown objects" do
     job = Delayed::Job.new 
     job['handler'] = "--- !ruby/object:Delayed::JobThatDoesNotExist {}"
     job.should_receive(:attempt_to_load).with('Delayed::JobThatDoesNotExist').and_return(true)     
-    lambda { job.perform }.should raise_error(Delayed::DeserializationError)    
+    lambda { job.payload_object.perform }.should raise_error(Delayed::DeserializationError)    
   end                  
   
   
@@ -97,15 +80,36 @@ describe Delayed::Job do
 
     job.should_receive(:attempt_to_load).with('JobThatDoesNotExist').and_return(true)
      
-    lambda { job.perform }.should raise_error(Delayed::DeserializationError)    
+    lambda { job.payload_object.perform }.should raise_error(Delayed::DeserializationError)    
   end          
   
   it "should try include the namespace when loading unknown structs" do
     job = Delayed::Job.new 
     job['handler'] = "--- !ruby/struct:Delayed::JobThatDoesNotExist {}"
     job.should_receive(:attempt_to_load).with('Delayed::JobThatDoesNotExist').and_return(true)     
-    lambda { job.perform }.should raise_error(Delayed::DeserializationError)    
+    lambda { job.payload_object.perform }.should raise_error(Delayed::DeserializationError)    
   end                  
+             
+  
+  describe  "when two workers are running" do
+    
+    before :each do
+      Delayed::Job.worker_name = 'worker1'
+      Delayed::Job.create :payload_object => SimpleJob.new, :locked_by => 'worker1', :locked_until => Time.now + 360      
+    end
+    
+    it "should give exclusive access only to a single worker" do                                                     
+      job = Delayed::Job.find_available.first      
+      lambda { job.lock_exclusively! Time.now + 20, 'worker2' }.should raise_error(Delayed::Job::LockError)      
+    end                                        
+
+    it "should be able to get exclusive access again when the worker name is the same" do      
+      job = Delayed::Job.find_available.first
+      job.lock_exclusively! Time.now + 20, 'worker1'      
+      job.lock_exclusively! Time.now + 21, 'worker1'
+      job.lock_exclusively! Time.now + 22, 'worker1'      
+    end                                        
+  end
   
 end
 
