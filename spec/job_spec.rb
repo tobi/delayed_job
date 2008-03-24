@@ -17,7 +17,7 @@ describe Delayed::Job do
   end                  
 
   it "should set run_at automatically" do
-    Delayed::Job.create.run_at.should_not == nil
+    Delayed::Job.create(:payload_object => ErrorJob.new ).run_at.should_not == nil
   end 
 
   it "should raise ArgumentError when handler doesn't respond_to :perform" do

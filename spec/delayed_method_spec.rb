@@ -1,4 +1,11 @@
 require File.dirname(__FILE__) + '/database'
+
+if not defined?(:ActiveRecord)
+  module ActiveRecord
+    class RecordNotFound < StandardError 
+    end
+  end  
+end
                      
 
 class SimpleJob
@@ -10,7 +17,16 @@ class RandomRubyObject
   def say_hello
     'hello'
   end  
-end        
+end     
+
+class ErrorObject
+  
+  def throw
+    raise ActiveRecord::RecordNotFound, '...'       
+    false
+  end
+  
+end   
 
 class StoryReader
   
@@ -20,7 +36,15 @@ class StoryReader
   
 end
 
+class StoryReader
+  
+  def read(story)
+    "Epilog: #{story.tell}"    
+  end
+  
+end
 
+                       
 describe 'random ruby objects' do
   
   before { reset_db }
@@ -48,7 +72,23 @@ describe 'random ruby objects' do
     RandomRubyObject.new.send_later(:say_hello)
                                
     Delayed::Job.count.should == 1        
-  end
+  end              
+
+  it "should ignore ActiveRecord::RecordNotFound errors because they are permanent" do
+    
+    ErrorObject.new.send_later(:throw)      
+
+    Delayed::Job.count.should == 1        
+    
+    output = nil
+    
+    Delayed::Job.reserve do |e|
+      output = e.perform
+    end
+    
+    output.should == true
+                               
+  end            
   
   it "should store the object as string if its an active record" do    
     story = Story.create :text => 'Once upon...'     
