@@ -3,7 +3,7 @@ namespace :jobs do
                
   task :work => :environment do 
 
-    puts "*** Staring job worker #{Delayed::Job.worker_name}"
+    puts "*** Starting job worker #{Delayed::Job.worker_name}"
     
     SLEEP = 5
      

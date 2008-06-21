@@ -70,7 +70,7 @@ At Shopify we run the the tasks from a simple script/job_runner which is being i
   trap('TERM') { puts 'Exiting...'; $exit = true }
   trap('INT')  { puts 'Exiting...'; $exit = true }
   
-  puts "*** Staring job worker #{Delayed::Job.worker_name}"
+  puts "*** Starting job worker #{Delayed::Job.worker_name}"
   
   begin
   

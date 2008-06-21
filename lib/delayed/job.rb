@@ -30,7 +30,7 @@ module Delayed
     end
   
     def reshedule(message, time = nil)          
-      time ||= Job.db_time_now + (attempts ** 4).seconds + 1
+      time ||= Job.db_time_now + (attempts ** 4).seconds + 5
       
       self.attempts    += 1
       self.run_at       = time
@@ -50,7 +50,9 @@ module Delayed
     
     def self.find_available(limit = 5)
       time_now = db_time_now
-      find(:all, :conditions => [NextTaskSQL, time_now, time_now, worker_name], :order => NextTaskOrder, :limit => 5)
+      ActiveRecord::Base.silence do 
+        find(:all, :conditions => [NextTaskSQL, time_now, time_now, worker_name], :order => NextTaskOrder, :limit => limit)
+      end
     end
                                                                              
     # Get the payload of the next job we can get an exclusive lock on. 
