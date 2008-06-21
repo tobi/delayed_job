@@ -57,7 +57,7 @@ module Delayed
                                                                              
     # Get the payload of the next job we can get an exclusive lock on. 
     # If no jobs are left we return nil
-    def self.reserve(timeout = 5 * 60)                                                                                 
+    def self.reserve(timeout = 4 * 60 * 60)                                                                                 
                     
       # We get up to 5 jobs from the db. In face we cannot get exclusive access to a job we try the next. 
       # this leads to a more even distribution of jobs across the worker processes 
