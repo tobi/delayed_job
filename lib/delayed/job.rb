@@ -10,7 +10,7 @@ module Delayed
     self.worker_name = "pid:#{Process.pid}"
     
     
-    NextTaskSQL         = '`run_at` <= ? AND (`locked_until` IS NULL OR `locked_until` < ?) OR (`locked_by`=?)'
+    NextTaskSQL         = '`run_at` <= ? AND (`locked_at` IS NULL OR `locked_at` < ?) OR (`locked_by` = ?)'
     NextTaskOrder       = 'priority DESC, run_at ASC'
     ParseObjectFromYaml = /\!ruby\/\w+\:([^\s]+)/
 
@@ -18,7 +18,7 @@ module Delayed
     end        
 
     def self.clear_locks!
-      connection.execute "UPDATE #{table_name} SET `locked_by`=NULL, `locked_until`=NULL WHERE `locked_by`=#{quote_value(worker_name)}"
+      connection.execute "UPDATE #{table_name} SET `locked_by`=NULL, `locked_at`=NULL WHERE `locked_by`=#{quote_value(worker_name)}"
     end
       
     def payload_object
@@ -57,13 +57,13 @@ module Delayed
                                                                              
     # Get the payload of the next job we can get an exclusive lock on. 
     # If no jobs are left we return nil
-    def self.reserve(timeout = 4 * 60 * 60)                                                                                 
+    def self.reserve(max_run_time = 4.hours)                                                                                 
                     
       # We get up to 5 jobs from the db. In face we cannot get exclusive access to a job we try the next. 
       # this leads to a more even distribution of jobs across the worker processes 
       find_available(5).each do |job|                       
         begin
-          job.lock_exclusively!(self.db_time_now + timeout, worker_name)
+          job.lock_exclusively!(max_run_time, worker_name)
           yield job.payload_object 
           job.destroy
           return job                                     
@@ -81,24 +81,26 @@ module Delayed
 
     # This method is used internally by reserve method to ensure exclusive access
     # to the given job. It will rise a LockError if it cannot get this lock. 
-    def lock_exclusively!(lock_until, worker = worker_name)
+    def lock_exclusively!(max_run_time, worker = worker_name)
+      now = self.class.db_time_now                 
       
-      affected_rows = if locked_by != worker                                   
+      affected_rows = if locked_by != worker                  
         
-        # We don't own this job so we will update the locked_by name and the locked_until
+        
+        # We don't own this job so we will update the locked_by name and the locked_at
         connection.update(<<-end_sql, "#{self.class.name} Update to aquire exclusive lock")
           UPDATE #{self.class.table_name}
-          SET `locked_until`=#{quote_value(lock_until)}, `locked_by`=#{quote_value(worker)} 
-          WHERE #{self.class.primary_key} = #{quote_value(id)} AND (`locked_until`<#{quote_value(self.class.db_time_now)} OR `locked_until` IS NULL)
+          SET `locked_at`=#{quote_value(now)}, `locked_by`=#{quote_value(worker)} 
+          WHERE #{self.class.primary_key} = #{quote_value(id)} AND (`locked_at` IS NULL OR `locked_at` < #{quote_value(now + max_run_time)})
         end_sql
 
       else          
         
         # We alrady own this job, this may happen if the job queue crashes. 
-        # Simply update the lock timeout
+        # Simply resume and update the locked_at
         connection.update(<<-end_sql, "#{self.class.name} Update exclusive lock")
           UPDATE #{self.class.table_name}
-          SET `locked_until`=#{quote_value(lock_until)} 
+          SET `locked_at`=#{quote_value(now)} 
           WHERE #{self.class.primary_key} = #{quote_value(id)} AND (`locked_by`=#{quote_value(worker)})
         end_sql
 
@@ -108,12 +110,12 @@ module Delayed
         raise LockError, "Attempted to aquire exclusive lock failed"
       end      
       
-      self.locked_until = lock_until
+      self.locked_at    = now
       self.locked_by    = worker      
     end      
     
     def unlock
-      self.locked_until = nil
+      self.locked_at    = nil
       self.locked_by    = nil
     end
     

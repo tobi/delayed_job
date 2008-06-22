@@ -91,23 +91,31 @@ describe Delayed::Job do
   end                  
              
   
-  describe  "when two workers are running" do
+  describe  "when another worker is already performing an task, it" do
     
     before :each do
       Delayed::Job.worker_name = 'worker1'
-      Delayed::Job.create :payload_object => SimpleJob.new, :locked_by => 'worker1', :locked_until => Time.now + 360      
+      @job = Delayed::Job.create :payload_object => SimpleJob.new, :locked_by => 'worker1', :locked_at => Time.now.utc
     end
     
-    it "should give exclusive access only to a single worker" do                                                     
-      job = Delayed::Job.find_available.first      
-      lambda { job.lock_exclusively! Time.now + 20, 'worker2' }.should raise_error(Delayed::Job::LockError)      
-    end                                        
+    it "should not allow a second worker to get exclusive access" do                                                     
+      lambda { @job.lock_exclusively! 4.hours, 'worker2' }.should raise_error(Delayed::Job::LockError)      
+    end      
+    
+    it "should be able to get access to the task if it was started more then max_age ago" do      
+      @job.locked_at = 5.hours.ago
+      @job.save
+
+      @job.lock_exclusively! 4.hours, 'worker2' 
+      @job.reload
+      @job.locked_by.should == 'worker2'
+      @job.locked_at.should > 1.minute.ago
+    end
 
     it "should be able to get exclusive access again when the worker name is the same" do      
-      job = Delayed::Job.find_available.first
-      job.lock_exclusively! Time.now + 20, 'worker1'      
-      job.lock_exclusively! Time.now + 21, 'worker1'
-      job.lock_exclusively! Time.now + 22, 'worker1'      
+      @job.lock_exclusively! Time.now + 20, 'worker1'      
+      @job.lock_exclusively! Time.now + 21, 'worker1'
+      @job.lock_exclusively! Time.now + 22, 'worker1'      
     end                                        
   end
   

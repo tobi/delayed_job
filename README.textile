@@ -13,7 +13,8 @@ It is a direct extraction from Shopify where the job table is responsible for a 
 * spam checks 
 
 h2. Changes
-                   
+
+* 1.6 Renamed locked_until to locked_at. We now store when we start a given task instead of how long it will be locked by the worker. This allows us to get a reading on how long a task took to execute.                    
 * 1.5 Job runners can now be run in parallel. Two new database columns are needed: locked_until and locked_by. This allows us to use pessimistic locking, which enables us to run as many worker processes as we need to speed up queue processing.
 * 1.0 Initial release
             
