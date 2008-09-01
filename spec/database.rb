@@ -1,13 +1,15 @@
 $:.unshift(File.dirname(__FILE__) + '/../lib')
-                                     
-require 'rubygems'             
-require 'active_record'                     
+$:.unshift(File.dirname(__FILE__) + '/../../rspec/lib')
+
+require 'rubygems'
+require 'active_record'
 require File.dirname(__FILE__) + '/../init'
+require 'spec'
 
 ActiveRecord::Base.logger = Logger.new(nil)
 ActiveRecord::Base.establish_connection(:adapter => 'sqlite3', :database => '/tmp/jobs.sqlite')
 ActiveRecord::Migration.verbose = false
-          
+
 def reset_db
   ActiveRecord::Schema.define do
 
@@ -16,10 +18,10 @@ def reset_db
       table.integer  :attempts, :default => 0
       table.text     :handler
       table.string   :last_error
-      table.datetime :run_at   
-      table.datetime :locked_at   
-      table.string   :locked_by   
-      table.timestamps    
+      table.datetime :run_at
+      table.datetime :locked_at
+      table.string   :locked_by
+      table.timestamps
     end
 
     create_table :stories, :force => true do |table|
@@ -27,9 +29,9 @@ def reset_db
     end
 
   end
-end                                         
-    
+end
+
 # Purely useful for test cases...
-class Story < ActiveRecord::Base          
+class Story < ActiveRecord::Base
   def tell; text; end
 end
