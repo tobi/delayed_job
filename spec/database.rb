@@ -10,7 +10,7 @@ ActiveRecord::Base.logger = Logger.new(nil)
 ActiveRecord::Base.establish_connection(:adapter => 'sqlite3', :database => '/tmp/jobs.sqlite')
 ActiveRecord::Migration.verbose = false
 
-def reset_db
+
   ActiveRecord::Schema.define do
 
     create_table :delayed_jobs, :force => true do |table|
@@ -29,7 +29,6 @@ def reset_db
     end
 
   end
-end
 
 # Purely useful for test cases...
 class Story < ActiveRecord::Base

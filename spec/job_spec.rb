@@ -11,10 +11,7 @@ class ErrorJob
 end
 
 describe Delayed::Job do
-
-  before :each do
-    reset_db
-  end
+  before       { Delayed::Job.delete_all }
 
   it "should set run_at automatically" do
     Delayed::Job.create(:payload_object => ErrorJob.new ).run_at.should_not == nil

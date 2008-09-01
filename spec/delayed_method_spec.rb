@@ -37,8 +37,7 @@ class StoryReader
 end
 
 describe 'random ruby objects' do
-
-  before { reset_db }
+  before       { Delayed::Job.delete_all }
 
   it "should respond_to :send_later method" do
 
@@ -87,7 +86,7 @@ describe 'random ruby objects' do
 
     job =  Delayed::Job.find(:first)
     job.payload_object.class.should   == Delayed::PerformableMethod
-    job.payload_object.object.should  == 'AR:Story:1'
+    job.payload_object.object.should  == "AR:Story:#{story.id}"
     job.payload_object.method.should  == :tell
     job.payload_object.args.should    == []
     job.payload_object.perform.should == 'Once upon...'
@@ -103,7 +102,7 @@ describe 'random ruby objects' do
     job =  Delayed::Job.find(:first)
     job.payload_object.class.should   == Delayed::PerformableMethod
     job.payload_object.method.should  == :read
-    job.payload_object.args.should    == ['AR:Story:1']
+    job.payload_object.args.should    == ["AR:Story:#{story.id}"]
     job.payload_object.perform.should == 'Epilog: Once upon...'
   end
 
