@@ -31,7 +31,7 @@ The library evolves around a delayed_jobs table which looks as follows:
     table.datetime :locked_at
     table.string   :locked_by
     table.timestamps
-  end      
+  end
   
 h2. Usage
 

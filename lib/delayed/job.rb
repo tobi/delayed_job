@@ -1,9 +1,11 @@
+
 module Delayed
 
   class DeserializationError < StandardError
   end
 
   class Job < ActiveRecord::Base
+    MAX_ATTEMPTS = 25
     set_table_name :delayed_jobs
 
     cattr_accessor :worker_name
@@ -22,21 +24,31 @@ module Delayed
 
     def payload_object
       @payload_object ||= deserialize(self['handler'])
+    end                 
+    
+    def name
+      text = handler.gsub(/\n/, ' ')
+      "#{id} (#{text.length > 40 ? "#{text[0..40]}..." : text})" 
     end
 
     def payload_object=(object)
       self['handler'] = object.to_yaml
     end
 
-    def reshedule(message, time = nil)
-      time ||= Job.db_time_now + (attempts ** 4).seconds + 5
+    def reschedule(message, time = nil)
+      if self.attempts < MAX_ATTEMPTS
+        time ||= Job.db_time_now + (attempts ** 4) + 5
 
-      self.attempts    += 1
-      self.run_at       = time
-      self.last_error   = message
-      self.unlock
-      save!
-    end
+        self.attempts    += 1
+        self.run_at       = time
+        self.last_error   = message  
+        self.unlock
+        save!
+      else    
+        logger.info "* [JOB] PERMANENTLY removing #{self.name} because of #{attempts} consequetive failures."
+        destroy
+      end
+    end                                  
 
     def self.enqueue(object, priority = 0)
       unless object.respond_to?(:perform)
@@ -55,21 +67,28 @@ module Delayed
 
     # Get the payload of the next job we can get an exclusive lock on. 
     # If no jobs are left we return nil
-    def self.reserve(max_run_time = 4.hours)
-
-      # We get up to 5 jobs from the db. In case we cannot get exclusive access to a job we try the next. 
-      # This leads to a more even distribution of jobs across the worker processes 
-      find_available(5).each do |job|
-        begin
+    def self.reserve(max_run_time = 4.hours)                                                                                 
+                    
+      # We get up to 5 jobs from the db. In face we cannot get exclusive access to a job we try the next. 
+      # this leads to a more even distribution of jobs across the worker processes 
+      find_available(5).each do |job|                       
+        begin                                              
+          logger.info "* [JOB] aquiring lock on #{job.name}"
           job.lock_exclusively!(max_run_time, worker_name)
-          yield job.payload_object
-          job.destroy
-          return job
+          runtime =  Benchmark.realtime do 
+            yield job.payload_object 
+            job.destroy
+          end
+          logger.info "* [JOB] #{job.name} completed after %.4f" % runtime
+          
+          return job                                     
         rescue LockError
           # We did not get the lock, some other worker process must have
-          puts "failed to aquire exclusive lock for #{job.id}"
-        rescue StandardError => e
-          job.reshedule e.message
+          logger.warn "* [JOB] failed to aquire exclusive lock for #{job.name}"
+        rescue StandardError => e 
+          job.reschedule e.message        
+          logger.error "* [JOB] #{job.name} failed with #{e.class.name}: #{e.message} - #{job.attempts} failed attempts"
+          logger.error(e)
           return job
         end
       end
@@ -81,14 +100,14 @@ module Delayed
     # to the given job. It will rise a LockError if it cannot get this lock. 
     def lock_exclusively!(max_run_time, worker = worker_name)
       now = self.class.db_time_now
-
-      affected_rows = if locked_by != worker
+      
+      affected_rows = if locked_by != worker 
 
         # We don't own this job so we will update the locked_by name and the locked_at
         connection.update(<<-end_sql, "#{self.class.name} Update to aquire exclusive lock")
           UPDATE #{self.class.table_name}
           SET `locked_at`=#{quote_value(now)}, `locked_by`=#{quote_value(worker)} 
-          WHERE #{self.class.primary_key} = #{quote_value(id)} AND (`locked_at` IS NULL OR `locked_at` < #{quote_value(now + max_run_time)})
+          WHERE #{self.class.primary_key} = #{quote_value(id)} AND (`locked_at` IS NULL OR `locked_at` < #{quote_value(now - max_run_time.to_i)})
         end_sql
 
       else
