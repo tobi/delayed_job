@@ -57,6 +57,14 @@ describe 'random ruby objects' do
     Delayed::Job.count.should == 1
   end
 
+  it "should add a new entry to the job table when send_later is called on the class" do
+    Delayed::Job.count.should == 0
+
+    RandomRubyObject.send_later(:to_s)
+
+    Delayed::Job.count.should == 1
+  end
+
   it "should run get the original method executed when the job is performed" do
 
     RandomRubyObject.new.send_later(:say_hello)
