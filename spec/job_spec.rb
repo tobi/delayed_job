@@ -121,6 +121,18 @@ describe Delayed::Job do
       @job.locked_by.should == 'worker2'
       @job.locked_at.should > 1.minute.ago
     end
+    
+    it "should not be found by another worker" do
+      Delayed::Job.worker_name = 'worker2'
+      
+      Delayed::Job.find_available(1, 6.minutes).length.should == 0
+    end
+    
+    it "should be found by another worker if the time has expired" do
+      Delayed::Job.worker_name = 'worker2'
+      
+      Delayed::Job.find_available(1, 4.minutes).length.should == 1
+    end
 
 
     it "should be able to get exclusive access again when the worker name is the same" do      

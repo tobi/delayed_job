@@ -58,10 +58,10 @@ module Delayed
       Job.create(:payload_object => object, :priority => priority)
     end
 
-    def self.find_available(limit = 5)
+    def self.find_available(limit = 5, max_run_time = 4.hours)
       time_now = db_time_now
       ActiveRecord::Base.silence do
-        find(:all, :conditions => [NextTaskSQL, time_now, time_now, worker_name], :order => NextTaskOrder, :limit => limit)
+        find(:all, :conditions => [NextTaskSQL, time_now, time_now - max_run_time, worker_name], :order => NextTaskOrder, :limit => limit)
       end
     end
 
@@ -71,7 +71,7 @@ module Delayed
                     
       # We get up to 5 jobs from the db. In face we cannot get exclusive access to a job we try the next. 
       # this leads to a more even distribution of jobs across the worker processes 
-      find_available(5).each do |job|                       
+      find_available(5, max_run_time).each do |job|
         begin                                              
           logger.info "* [JOB] aquiring lock on #{job.name}"
           job.lock_exclusively!(max_run_time, worker_name)
