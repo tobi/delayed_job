@@ -4,13 +4,15 @@ module Delayed
 
     def initialize(options={})
       @quiet = options[:quiet]
-    end
+      Delayed::Job.min_priority = options[:min_priority] if options.has_key?(:min_priority)
+      Delayed::Job.max_priority = options[:max_priority] if options.has_key?(:max_priority)
+    end                                                                          
 
     def start
-      puts "*** Starting job worker #{Delayed::Job.worker_name}" unless @quiet
+      say "*** Starting job worker #{Delayed::Job.worker_name}"
 
-      trap('TERM') { puts 'Exiting...' unless @quiet; $exit = true }
-      trap('INT')  { puts 'Exiting...' unless @quiet; $exit = true }
+      trap('TERM') { say 'Exiting...'; $exit = true }
+      trap('INT')  { say 'Exiting...'; $exit = true }
 
       loop do      
         result = nil                                 
@@ -25,15 +27,18 @@ module Delayed
 
         if count.zero? 
           sleep(SLEEP)
-          puts 'Waiting for more jobs...' unless @quiet
         else
-          status = "#{count} jobs processed at %.4f j/s, %d failed ..." % [count / realtime, result.last]
-          RAILS_DEFAULT_LOGGER.info status
-          puts status unless @quiet
+          say "#{count} jobs processed at %.4f j/s, %d failed ..." % [count / realtime, result.last]          
         end
 
         break if $exit
+      end                                                                        
+      
+      def say(text)
+        puts text unless @quiet
+        RAILS_DEFAULT_LOGGER.info text
       end
+     
     end
   end
 end
