@@ -14,31 +14,31 @@ module Delayed
       trap('TERM') { say 'Exiting...'; $exit = true }
       trap('INT')  { say 'Exiting...'; $exit = true }
 
-      loop do      
-        result = nil                                 
+      loop do
+        result = nil
 
-        realtime = Benchmark.realtime do  
-          result = Delayed::Job.work_off      
-        end                                                                          
+        realtime = Benchmark.realtime do
+          result = Delayed::Job.work_off
+        end
 
         count = result.sum
 
         break if $exit
 
-        if count.zero? 
+        if count.zero?
           sleep(SLEEP)
         else
-          say "#{count} jobs processed at %.4f j/s, %d failed ..." % [count / realtime, result.last]          
+          say "#{count} jobs processed at %.4f j/s, %d failed ..." % [count / realtime, result.last]
         end
 
         break if $exit
-      end                                                                        
-      
-      def say(text)
-        puts text unless @quiet
-        RAILS_DEFAULT_LOGGER.info text
       end
-     
     end
+    
+    def say(text)
+      puts text unless @quiet
+      RAILS_DEFAULT_LOGGER.info text
+    end
+
   end
 end
