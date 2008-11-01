@@ -20,6 +20,7 @@ ActiveRecord::Migration.verbose = false
       table.string   :last_error
       table.datetime :run_at
       table.datetime :locked_at
+      table.datetime :failed_at
       table.string   :locked_by
       table.timestamps
     end
