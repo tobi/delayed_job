@@ -1,6 +1,6 @@
 namespace :jobs do
   
-               
+              
   task :work => :environment do 
 
     puts "*** Starting job worker #{Delayed::Job.worker_name}"
@@ -9,6 +9,9 @@ namespace :jobs do
      
     trap('TERM') { puts 'Exiting...'; $exit = true }
     trap('INT')  { puts 'Exiting...'; $exit = true }
+    
+    Delayed::Job.min_priority = ENV['MIN_PRIORITY']
+    Delayed::Job.max_priority = ENV['MAX_PRIORITY']
 
     loop do      
       result = nil                                 

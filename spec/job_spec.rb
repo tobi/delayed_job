@@ -11,7 +11,16 @@ class ErrorJob
 end
 
 describe Delayed::Job do
-  before       { Delayed::Job.delete_all }
+  before  do               
+    Delayed::Job.max_priority = nil
+    Delayed::Job.min_priority = nil      
+    
+    Delayed::Job.delete_all
+  end
+  
+  before(:each) do
+    SimpleJob.runs = 0
+  end
 
   it "should set run_at automatically" do
     Delayed::Job.create(:payload_object => ErrorJob.new ).run_at.should_not == nil
@@ -128,5 +137,40 @@ describe Delayed::Job do
       @job.lock_exclusively! 5.minutes, 'worker1'
       @job.lock_exclusively! 5.minutes, 'worker1'
     end                                        
+  end         
+  
+  context "worker prioritization" do
+    
+    before(:each) do
+      Delayed::Job.max_priority = nil
+      Delayed::Job.min_priority = nil      
+    end
+  
+    it "should only work_off jobs that are >= min_priority" do
+      Delayed::Job.min_priority = -5
+      Delayed::Job.max_priority = 5
+      SimpleJob.runs.should == 0
+    
+      Delayed::Job.enqueue SimpleJob.new, -10
+      Delayed::Job.enqueue SimpleJob.new, 0
+      Delayed::Job.work_off
+    
+      SimpleJob.runs.should == 1
+    end
+  
+    it "should only work_off jobs that are <= max_priority" do
+      Delayed::Job.min_priority = -5
+      Delayed::Job.max_priority = 5
+      SimpleJob.runs.should == 0
+    
+      Delayed::Job.enqueue SimpleJob.new, 10
+      Delayed::Job.enqueue SimpleJob.new, 0
+
+      Delayed::Job.work_off
+
+      SimpleJob.runs.should == 1
+    end                         
+   
   end
+  
 end

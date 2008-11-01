@@ -8,10 +8,12 @@ module Delayed
     MAX_ATTEMPTS = 25
     set_table_name :delayed_jobs
 
-    cattr_accessor :worker_name
-    self.worker_name = "pid:#{Process.pid}"
+    cattr_accessor :worker_name, :min_priority, :max_priority
+    self.worker_name = "pid:#{Process.pid}"      
+    self.min_priority = nil
+    self.max_priority = nil
   
-    NextTaskSQL         = '`run_at` <= ? AND (`locked_at` IS NULL OR `locked_at` < ?) OR (`locked_by` = ?)'
+    NextTaskSQL         = '(`locked_by` = ?) OR (`run_at` <= ? AND (`locked_at` IS NULL OR `locked_at` < ?))'
     NextTaskOrder       = 'priority DESC, run_at ASC'
     ParseObjectFromYaml = /\!ruby\/\w+\:([^\s]+)/
 
@@ -55,15 +57,33 @@ module Delayed
         raise ArgumentError, 'Cannot enqueue items which do not respond to perform'
       end
 
-      Job.create(:payload_object => object, :priority => priority)
+      Job.create(:payload_object => object, :priority => priority.to_i)
     end
 
     def self.find_available(limit = 5)
-      time_now = db_time_now
-      ActiveRecord::Base.silence do
-        find(:all, :conditions => [NextTaskSQL, time_now, time_now, worker_name], :order => NextTaskOrder, :limit => limit)
+      
+      time_now = db_time_now          
+      
+      sql = NextTaskSQL.dup
+      conditions = [time_now, time_now, worker_name]
+      
+      if self.min_priority
+        sql << ' AND (`priority` >= ?)'
+        conditions << min_priority
       end
-    end
+      
+      if self.max_priority
+        sql << ' AND (`priority` <= ?)'
+        conditions << max_priority         
+      end
+           
+      conditions.unshift(sql)         
+           
+      ActiveRecord::Base.silence do
+        find(:all, :conditions => conditions, :order => NextTaskOrder, :limit => limit)
+      end
+    end                                    
+        
 
     # Get the payload of the next job we can get an exclusive lock on. 
     # If no jobs are left we return nil
