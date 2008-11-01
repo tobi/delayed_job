@@ -9,6 +9,9 @@ module Delayed
     MAX_RUN_TIME = 4.hours
     set_table_name :delayed_jobs
 
+    cattr_accessor :destroy_jobs
+    self.destroy_jobs = true
+
     cattr_accessor :worker_name
     self.worker_name = "pid:#{Process.pid}"
 
@@ -52,7 +55,7 @@ module Delayed
         save!
       else
         logger.info "* [JOB] PERMANENTLY removing #{self.name} because of #{attempts} consequetive failures."
-        update_attribute :failed_at, Time.now
+        destroy_jobs ? destroy : update_attribute(:failed_at, Time.now)
       end
     end
 
