@@ -91,26 +91,26 @@ describe Delayed::Job do
   end
 
   it "should be failed if it failed more than MAX_ATTEMPTS times and we don't want to destroy jobs" do
-    default = Delayed::Job.destroy_jobs
-    Delayed::Job.destroy_jobs = false
+    default = Delayed::Job.destroy_failed_jobs
+    Delayed::Job.destroy_failed_jobs = false
 
     @job = Delayed::Job.create :payload_object => SimpleJob.new, :attempts => 50
     @job.reload.failed_at.should == nil
     @job.reschedule 'FAIL'
     @job.reload.failed_at.should_not == nil
 
-    Delayed::Job.destroy_jobs = default
+    Delayed::Job.destroy_failed_jobs = default
   end
 
   it "should be destroyed if it failed more than MAX_ATTEMPTS times and we want to destroy jobs" do
-    default = Delayed::Job.destroy_jobs
-    Delayed::Job.destroy_jobs = true
+    default = Delayed::Job.destroy_failed_jobs
+    Delayed::Job.destroy_failed_jobs = true
 
     @job = Delayed::Job.create :payload_object => SimpleJob.new, :attempts => 50
     @job.should_receive(:destroy)
     @job.reschedule 'FAIL'
 
-    Delayed::Job.destroy_jobs = default
+    Delayed::Job.destroy_failed_jobs = default
   end
 
   it "should never find failed jobs" do
