@@ -90,7 +90,7 @@ describe Delayed::Job do
     lambda { job.payload_object.perform }.should raise_error(Delayed::DeserializationError)
   end
 
-  it "should be failed if it failed more than MAX_ATTEMPTS times" do
+  it "should be failed if it failed more than MAX_ATTEMPTS times and we don't want to destroy jobs" do
     default = Delayed::Job.destroy_jobs
     Delayed::Job.destroy_jobs = false
 
@@ -98,6 +98,17 @@ describe Delayed::Job do
     @job.reload.failed_at.should == nil
     @job.reschedule 'FAIL'
     @job.reload.failed_at.should_not == nil
+
+    Delayed::Job.destroy_jobs = default
+  end
+
+  it "should be destroyed if it failed more than MAX_ATTEMPTS times and we want to destroy jobs" do
+    default = Delayed::Job.destroy_jobs
+    Delayed::Job.destroy_jobs = true
+
+    @job = Delayed::Job.create :payload_object => SimpleJob.new, :attempts => 50
+    @job.should_receive(:destroy)
+    @job.reschedule 'FAIL'
 
     Delayed::Job.destroy_jobs = default
   end
