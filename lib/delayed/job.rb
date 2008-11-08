@@ -107,7 +107,7 @@ module Delayed
           logger.warn "* [JOB] failed to aquire exclusive lock for #{job.name}"
         rescue StandardError => e 
           job.reschedule e.message        
-          log_exception(job, error)
+          log_exception(job, e)
           return job
         end
       end
