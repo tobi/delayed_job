@@ -107,8 +107,7 @@ module Delayed
           logger.warn "* [JOB] failed to aquire exclusive lock for #{job.name}"
         rescue StandardError => e 
           job.reschedule e.message        
-          logger.error "* [JOB] #{job.name} failed with #{e.class.name}: #{e.message} - #{job.attempts} failed attempts"
-          logger.error(e)
+          log_exception(job, error)
           return job
         end
       end
@@ -153,6 +152,12 @@ module Delayed
     def unlock
       self.locked_at    = nil
       self.locked_by    = nil
+    end
+
+    # This is a good hook if you need to report job processing errors in additional or different ways
+    def self.log_exception(job, error)
+      logger.error "* [JOB] #{job.name} failed with #{error.class.name}: #{error.message} - #{job.attempts} failed attempts"
+      logger.error(error)
     end
 
     def self.work_off(num = 100)
