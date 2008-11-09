@@ -84,10 +84,8 @@ module Delayed
       ActiveRecord::Base.silence do
         find(:all, :conditions => conditions, :order => NextTaskOrder, :limit => limit)
       end
-      
     end                                    
         
-
     # Get the payload of the next job we can get an exclusive lock on. 
     # If no jobs are left we return nil
     def self.reserve(max_run_time = 4.hours)                                                                                 
@@ -98,7 +96,7 @@ module Delayed
         begin                                              
           logger.info "* [JOB] aquiring lock on #{job.name}"
           job.lock_exclusively!(max_run_time, worker_name)
-          runtime =  Benchmark.realtime do 
+          runtime = Benchmark.realtime do 
             yield job.payload_object 
             job.destroy
           end
@@ -123,26 +121,17 @@ module Delayed
     # to the given job. It will rise a LockError if it cannot get this lock. 
     def lock_exclusively!(max_run_time, worker = worker_name)
       now = self.class.db_time_now
-      
-      affected_rows = if locked_by != worker 
-
-        # We don't own this job so we will update the locked_by name and the locked_at
-        transaction do
-          Job.update_all(["locked_at = ?, locked_by = ?", now, worker], ["id = ? and (locked_at is null or locked_at < ?)", id, (now - max_run_time.to_i)])
+      transaction do
+        if locked_by != worker
+          # We don't own this job so we will update the locked_by name and the locked_at
+          affected_rows = self.class.update_all(["locked_at = ?, locked_by = ?", now, worker], ["id = ? and (locked_at is null or locked_at < ?)", id, (now - max_run_time.to_i)])
+        else
+          # We already own this job, this may happen if the job queue crashes. 
+          # Simply resume and update the locked_at
+          affected_rows = self.class.update_all(["locked_at = ?", now], ["id = ? and (locked_by = ?)", id, worker])
         end
-      else
-
-        # We already own this job, this may happen if the job queue crashes. 
-        # Simply resume and update the locked_at
-        transaction do
-          Job.update_all(["locked_at = ?", now], ["id = ? and (locked_by = ?)", id, worker])
-        end
+        raise LockError.new("Attempted to aquire exclusive lock failed") unless affected_rows == 1
       end
-
-      unless affected_rows == 1
-        raise LockError, "Attempted to aquire exclusive lock failed"
-      end
-
       self.locked_at    = now
       self.locked_by    = worker
     end

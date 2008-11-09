@@ -173,18 +173,29 @@ describe Delayed::Job do
    
   end
   
-  context "when retreiving jobs" do
+  context "when retreiving jobs from the queue" do
     before(:each) do
-      @simple_job = SimpleJob.new
-      @job = Delayed::Job.create :payload_object => @simple_job, :locked_by => 'worker1', :locked_at => Delayed::Job.db_time_now - 5.minutes
+      @job = Delayed::Job.create(
+        :payload_object => SimpleJob.new, 
+        :locked_by => 'worker1', 
+        :locked_at => Delayed::Job.db_time_now - 5.minutes)
     end
   
-    it "should return jobs that haven't been processed yet" do
-      SimpleJob.runs.should == 0
-      # Delayed::Job.should_receive(:find_available).once.with(5).and_return([@job])
-      Delayed::Job.should_receive(:reserve).once.and_yield(@job.payload_object)            
+    it "should process jobs that haven't been processed yet and remove them from the queue" do
+      Delayed::Job.find_available.length.should == 1
+      SimpleJob.runs.should == 0            
       Delayed::Job.work_off(1)
       SimpleJob.runs.should == 1
+      Delayed::Job.find_available.length.should == 0
+    end
+    
+    it "should leave the queue in a consistent state if failure occurs trying to aquire a lock" do
+      SimpleJob.runs.should == 0     
+      @job.stub!(:lock_exclusively!).with(:any_args).once.and_raise(Delayed::Job::LockError)
+      Delayed::Job.should_receive(:find_available).any_number_of_times.at_least(:once).and_return([@job])
+      Delayed::Job.work_off(1)
+      SimpleJob.runs.should == 0
+      Delayed::Job.find_available(5).length.should == 1
     end
   
   end
