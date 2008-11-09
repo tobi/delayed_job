@@ -173,4 +173,20 @@ describe Delayed::Job do
    
   end
   
+  context "when retreiving jobs" do
+    before(:each) do
+      @simple_job = SimpleJob.new
+      @job = Delayed::Job.create :payload_object => @simple_job, :locked_by => 'worker1', :locked_at => Delayed::Job.db_time_now - 5.minutes
+    end
+  
+    it "should return jobs that haven't been processed yet" do
+      SimpleJob.runs.should == 0
+      # Delayed::Job.should_receive(:find_available).once.with(5).and_return([@job])
+      Delayed::Job.should_receive(:reserve).once.and_yield(@job.payload_object)            
+      Delayed::Job.work_off(1)
+      SimpleJob.runs.should == 1
+    end
+  
+  end
+  
 end
