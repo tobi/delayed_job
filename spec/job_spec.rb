@@ -189,15 +189,28 @@ describe Delayed::Job do
       Delayed::Job.find_available.length.should == 0
     end
     
+    # TODO: verify that the datetime fields are not changed (test the Tx work).
     it "should leave the queue in a consistent state if failure occurs trying to aquire a lock" do
       SimpleJob.runs.should == 0     
       @job.stub!(:lock_exclusively!).with(:any_args).once.and_raise(Delayed::Job::LockError)
-      Delayed::Job.should_receive(:find_available).at_least(:once).and_return([@job])
+      Delayed::Job.should_receive(:find_available).once.and_return([@job])
       Delayed::Job.work_off(1)
       SimpleJob.runs.should == 0
-      Delayed::Job.find_available(5).length.should == 1
     end
   
+  end
+  
+  context "when clearing the queue of jobs" do 
+    before(:each) do
+      # create some jobs here.
+    end
+    
+    it "should remove only jobs created by this worker"
+    
+    after(:each) do 
+      # delete
+    end
+    
   end
   
 end

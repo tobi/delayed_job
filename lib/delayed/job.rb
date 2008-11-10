@@ -15,8 +15,8 @@ module Delayed
   
     # Conditions to find tasks that are locked by this process or one that has 
     # been created before now and is not currently locked.
-    NextTaskSQL         = '(locked_by = ?) OR (run_at <= ? AND (locked_at IS NULL OR locked_at < ?))'
-    NextTaskOrder       = 'priority DESC, run_at ASC'
+    NextTaskSQL         = "(locked_by = ?) OR (run_at <= ? AND (locked_at IS NULL OR locked_at < ?))"
+    NextTaskOrder       = "priority DESC, run_at ASC"
     ParseObjectFromYaml = /\!ruby\/\w+\:([^\s]+)/
 
     class LockError < StandardError
@@ -122,13 +122,13 @@ module Delayed
     def lock_exclusively!(max_run_time, worker = worker_name)
       now = self.class.db_time_now
       transaction do
-        if locked_by != worker
+        affected_rows = if locked_by != worker
           # We don't own this job so we will update the locked_by name and the locked_at
-          affected_rows = self.class.update_all(["locked_at = ?, locked_by = ?", now, worker], ["id = ? and (locked_at is null or locked_at < ?)", id, (now - max_run_time.to_i)])
+          self.class.update_all(["locked_at = ?, locked_by = ?", now, worker], ["id = ? and (locked_at is null or locked_at < ?)", id, (now - max_run_time.to_i)])
         else
           # We already own this job, this may happen if the job queue crashes. 
           # Simply resume and update the locked_at
-          affected_rows = self.class.update_all(["locked_at = ?", now], ["id = ? and (locked_by = ?)", id, worker])
+          self.class.update_all(["locked_at = ?", now], ["id = ? and (locked_by = ?)", id, worker])
         end
         raise LockError.new("Attempted to aquire exclusive lock failed") unless affected_rows == 1
       end
