@@ -104,7 +104,7 @@ describe Delayed::Job do
     @job.reschedule 'FAIL'
   end
 
-  describe  "when another worker is already performing an task, it" do
+  context "when another worker is already performing an task, it" do
 
     before :each do
       Delayed::Job.worker_name = 'worker1'
@@ -113,12 +113,10 @@ describe Delayed::Job do
 
     it "should not allow a second worker to get exclusive access" do
       lambda { @job.lock_exclusively! 4.hours, 'worker2' }.should raise_error(Delayed::Job::LockError)
-    end      
-
-    it "should not allow a second worker to get exclusive access if the timeout has passed" do
-      
-      @job.lock_exclusively! 1.minute, 'worker2' 
-      
+    end
+    
+    it "should allow a second worker to get exclusive access if the timeout has passed" do
+      lambda { @job.lock_exclusively! 1.minute, 'worker2' }.should_not raise_error(Delayed::Job::LockError)
     end      
     
     it "should be able to get access to the task if it was started more then max_age ago" do
@@ -130,7 +128,6 @@ describe Delayed::Job do
       @job.locked_by.should == 'worker2'
       @job.locked_at.should > 1.minute.ago
     end
-
 
     it "should be able to get exclusive access again when the worker name is the same" do      
       @job.lock_exclusively! 5.minutes, 'worker1'
@@ -173,7 +170,7 @@ describe Delayed::Job do
    
   end
   
-  context "when retreiving jobs from the queue" do
+  context "when pulling jobs off the queue, it" do
     before(:each) do
       @job = Delayed::Job.create(
         :payload_object => SimpleJob.new, 
@@ -181,16 +178,15 @@ describe Delayed::Job do
         :locked_at => Delayed::Job.db_time_now - 5.minutes)
     end
   
-    it "should process jobs that haven't been processed yet and remove them from the queue" do
+    it "should pull jobs off the queue that haven't been completed yet" do
       Delayed::Job.find_available.length.should == 1
       SimpleJob.runs.should == 0            
       Delayed::Job.work_off(1)
       SimpleJob.runs.should == 1
       Delayed::Job.find_available.length.should == 0
     end
-    
-    # TODO: verify that the datetime fields are not changed (test the Tx work).
-    it "should leave the queue in a consistent state if failure occurs trying to aquire a lock" do
+
+    it "should leave the queue in a consistent state if locking fails and not run the job" do
       SimpleJob.runs.should == 0     
       @job.stub!(:lock_exclusively!).with(:any_args).once.and_raise(Delayed::Job::LockError)
       Delayed::Job.should_receive(:find_available).once.and_return([@job])
@@ -200,15 +196,19 @@ describe Delayed::Job do
   
   end
   
-  context "when clearing the queue of jobs" do 
+  context "while running alongside other workers with enqueued jobs, it" do 
     before(:each) do
-      # create some jobs here.
+      Delayed::Job.worker_name = 'worker1'
+      Delayed::Job.create(:payload_object => SimpleJob.new, :locked_by => 'worker1', :locked_at => 5.hours.ago)
+      Delayed::Job.create(:payload_object => SimpleJob.new, :locked_by => 'worker2', :locked_at => 3.hours.ago)  
+      Delayed::Job.create(:payload_object => SimpleJob.new, :locked_by => 'worker1', :locked_at => 2.hours.ago)
     end
     
-    it "should remove only jobs created by this worker"
-    
-    after(:each) do 
-      # delete
+    it "should remove only jobs created by the current worker" do
+      SimpleJob.runs.should == 0  
+      Delayed::Job.work_off(3)
+      SimpleJob.runs.should == 2  
+      Delayed::Job.find_available.length.should == 1   
     end
     
   end
