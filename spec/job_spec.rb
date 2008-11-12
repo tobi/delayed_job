@@ -22,8 +22,13 @@ describe Delayed::Job do
     SimpleJob.runs = 0
   end
 
-  it "should set run_at automatically" do
+  it "should set run_at automatically if not set" do
     Delayed::Job.create(:payload_object => ErrorJob.new ).run_at.should_not == nil
+  end
+
+  it "should not set run_at automatically if already set" do
+    later = 5.minutes.from_now
+    Delayed::Job.create(:payload_object => ErrorJob.new, :run_at => later).run_at.should == later
   end
 
   it "should raise ArgumentError when handler doesn't respond_to :perform" do
@@ -33,6 +38,19 @@ describe Delayed::Job do
   it "should increase count after enqueuing items" do
     Delayed::Job.enqueue SimpleJob.new
     Delayed::Job.count.should == 1
+  end
+
+  it "should be able to set priority when enqueuing items" do
+    Delayed::Job.enqueue SimpleJob.new, 5
+    Delayed::Job.first.priority.should == 5
+  end
+
+  it "should be able to set run_at when enqueuing items" do
+    later = 5.minutes.from_now
+    Delayed::Job.enqueue SimpleJob.new, 5, later
+
+    # use be close rather than equal to because millisecond values cn be lost in DB round trip
+    Delayed::Job.first.run_at.should be_close(later, 1)
   end
 
   it "should call perform on jobs when running work_off" do
@@ -98,7 +116,7 @@ describe Delayed::Job do
     job.should_receive(:attempt_to_load).with('Delayed::JobThatDoesNotExist').and_return(true)
     lambda { job.payload_object.perform }.should raise_error(Delayed::DeserializationError)
   end
-
+  
   it "should be failed if it failed more than MAX_ATTEMPTS times and we don't want to destroy jobs" do
     default = Delayed::Job.destroy_failed_jobs
     Delayed::Job.destroy_failed_jobs = false
@@ -166,7 +184,6 @@ describe Delayed::Job do
       Delayed::Job.find_available(1, 4.minutes).length.should == 1
     end
 
-
     it "should be able to get exclusive access again when the worker name is the same" do
       @job.lock_exclusively! 5.minutes, 'worker1'
       @job.lock_exclusively! 5.minutes, 'worker1'
@@ -207,5 +224,5 @@ describe Delayed::Job do
     end                         
    
   end
-  
+
 end

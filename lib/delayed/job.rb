@@ -69,12 +69,12 @@ module Delayed
       end
     end
 
-    def self.enqueue(object, priority = 0)
+    def self.enqueue(object, priority = 0, run_at = nil)
       unless object.respond_to?(:perform)
         raise ArgumentError, 'Cannot enqueue items which do not respond to perform'
       end
 
-      Job.create(:payload_object => object, :priority => priority.to_i)
+      Job.create(:payload_object => object, :priority => priority.to_i, :run_at => run_at)
     end
 
     def self.find_available(limit = 5, max_run_time = MAX_RUN_TIME)
