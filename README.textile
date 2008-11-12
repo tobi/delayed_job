@@ -29,6 +29,7 @@ The library evolves around a delayed_jobs table which looks as follows:
     table.string   :last_error
     table.datetime :run_at
     table.datetime :locked_at
+    table.datetime :failed_at
     table.string   :locked_by
     table.timestamps
   end
