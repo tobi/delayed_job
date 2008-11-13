@@ -206,23 +206,15 @@ describe Delayed::Job do
    
   end
   
-  context "when pulling jobs off the queue, it" do
+  context "when pulling jobs off the queue for processing, it" do
     before(:each) do
       @job = Delayed::Job.create(
         :payload_object => SimpleJob.new, 
         :locked_by => 'worker1', 
         :locked_at => Delayed::Job.db_time_now - 5.minutes)
     end
-  
-    it "should pull jobs off the queue that haven't been completed yet" do
-      Delayed::Job.find_available.length.should == 1
-      SimpleJob.runs.should == 0            
-      Delayed::Job.work_off(1)
-      SimpleJob.runs.should == 1
-      Delayed::Job.find_available.length.should == 0
-    end
 
-    it "should leave the queue in a consistent state if locking fails and not run the job" do
+    it "should leave the queue in a consistent state and not run the job if locking fails" do
       SimpleJob.runs.should == 0     
       @job.stub!(:lock_exclusively!).with(:any_args).once.and_raise(Delayed::Job::LockError)
       Delayed::Job.should_receive(:find_available).once.and_return([@job])
