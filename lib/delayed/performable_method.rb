@@ -10,6 +10,10 @@ module Delayed
       self.args   = args.map { |a| dump(a) }
       self.method = method.to_sym
     end
+    
+    def display_name
+      "#{object}##{method}"
+    end    
 
     def perform
       load(object).send(method, *args.map{|a| load(a)})

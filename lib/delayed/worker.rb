@@ -3,7 +3,7 @@ module Delayed
     SLEEP = 5
 
     def initialize(options={})
-      @quiet = options[:quiet]
+      @quiet = options[:quiet]                                                             
       Delayed::Job.min_priority = options[:min_priority] if options.has_key?(:min_priority)
       Delayed::Job.max_priority = options[:max_priority] if options.has_key?(:max_priority)
     end                                                                          
@@ -13,7 +13,8 @@ module Delayed
 
       trap('TERM') { say 'Exiting...'; $exit = true }
       trap('INT')  { say 'Exiting...'; $exit = true }
-
+           
+      
       loop do
         result = nil
 
@@ -32,7 +33,10 @@ module Delayed
         end
 
         break if $exit
-      end
+      end           
+      
+    ensure
+      Delayed::Job..clear_locks!
     end
     
     def say(text)

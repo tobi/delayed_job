@@ -187,7 +187,18 @@ describe Delayed::Job do
       @job.lock_exclusively! 5.minutes, 'worker1'
       @job.lock_exclusively! 5.minutes, 'worker1'
     end                                        
-  end         
+  end            
+  
+  context "#name" do
+    it "should be the class name of the job that was enqueued" do
+      Delayed::Job.create(:payload_object => ErrorJob.new ).name.should == 'ErrorJob'
+    end
+
+    it "should be the method that will be called if its a performable method object" do
+      Delayed::Job.send_later(:clear_locks!)
+      Delayed::Job.last.name.should == 'CLASS:Delayed::Job#clear_locks!'
+    end
+  end
   
   context "worker prioritization" do
     

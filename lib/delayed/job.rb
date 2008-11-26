@@ -19,7 +19,7 @@ module Delayed
     # There are some advantages to overriding this with something which survives worker retarts: 
     # Workers can safely resume working on tasks which are locked by themselves. The worker will assume that it crashed before.
     cattr_accessor :worker_name
-    self.worker_name = "pid:#{Process.pid}"
+    self.worker_name = "host:#{Socket.gethostname} pid:#{Process.pid}" rescue "pid:#{Process.pid}"
 
     NextTaskSQL         = '(run_at <= ? AND (locked_at IS NULL OR locked_at < ?) OR (locked_by = ?)) AND failed_at IS NULL'
     NextTaskOrder       = 'priority DESC, run_at ASC'
@@ -45,10 +45,16 @@ module Delayed
     def payload_object
       @payload_object ||= deserialize(self['handler'])
     end
-
-    def name
-      text = handler.gsub(/\n/, ' ')
-      "#{id} (#{text.length > 40 ? "#{text[0..40]}..." : text})"
+    
+    def name    
+      @name ||= begin
+        payload = payload_object
+        if payload.respond_to?(:display_name)
+          payload.display_name
+        else
+          payload.class.name
+        end
+      end
     end
 
     def payload_object=(object)
@@ -105,7 +111,7 @@ module Delayed
       
     # Get the payload of the next job we can get an exclusive lock on.
     # If no jobs are left we return nil
-    def self.reserve(max_run_time = MAX_RUN_TIME)
+    def self.reserve(max_run_time = MAX_RUN_TIME, &block)
 
       # We get up to 5 jobs from the db. In face we cannot get exclusive access to a job we try the next.
       # this leads to a more even distribution of jobs across the worker processes
@@ -114,7 +120,7 @@ module Delayed
           logger.info "* [JOB] aquiring lock on #{job.name}"
           job.lock_exclusively!(max_run_time, worker_name)
           runtime =  Benchmark.realtime do
-            yield job.payload_object
+            invoke_job(job.payload_object, &block)
             job.destroy
           end
           logger.info "* [JOB] #{job.name} completed after %.4f" % runtime
@@ -181,7 +187,14 @@ module Delayed
       end
 
       return [success, failure]
+    end          
+    
+    
+    # Moved into its own method so that new_relic can trace it.
+    def self.invoke_job(job, &block)
+      block.call(job)
     end
+
 
     private
 
