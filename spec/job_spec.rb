@@ -8,6 +8,14 @@ end
 class ErrorJob
   cattr_accessor :runs; self.runs = 0
   def perform; raise 'did not work'; end
+end             
+
+module M
+  class ModuleJob
+    cattr_accessor :runs; self.runs = 0
+    def perform; @@runs += 1; end    
+  end
+  
 end
 
 describe Delayed::Job do
@@ -61,7 +69,17 @@ describe Delayed::Job do
 
     SimpleJob.runs.should == 1
   end
+                     
+                     
+  it "should work with jobs in modules" do
+    M::ModuleJob.runs.should == 0
 
+    Delayed::Job.enqueue M::ModuleJob.new
+    Delayed::Job.work_off
+
+    M::ModuleJob.runs.should == 1
+  end
+                   
   it "should re-schedule by about 1 second at first and increment this more and more minutes when it fails to execute properly" do
     Delayed::Job.enqueue ErrorJob.new
     Delayed::Job.work_off(1)
@@ -196,7 +214,15 @@ describe Delayed::Job do
 
     it "should be the method that will be called if its a performable method object" do
       Delayed::Job.send_later(:clear_locks!)
-      Delayed::Job.last.name.should == 'CLASS:Delayed::Job#clear_locks!'
+      Delayed::Job.last.name.should == 'Delayed::Job.clear_locks!'
+
+    end
+    it "should be the instance method that will be called if its a performable method object" do
+      story = Story.create :text => "..."                 
+      
+      story.send_later(:save)
+      
+      Delayed::Job.last.name.should == 'Story#save'
     end
   end
   
