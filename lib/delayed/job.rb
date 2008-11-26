@@ -104,9 +104,11 @@ module Delayed
 
       conditions.unshift(sql)         
             
-      ActiveRecord::Base.silence do
+      records = ActiveRecord::Base.silence do
         find(:all, :conditions => conditions, :order => NextTaskOrder, :limit => limit)
       end
+      
+      records.sort { rand() }
     end                                    
       
     # Get the payload of the next job we can get an exclusive lock on.

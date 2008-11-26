@@ -36,7 +36,7 @@ module Delayed
       end           
       
     ensure
-      Delayed::Job..clear_locks!
+      Delayed::Job.clear_locks!
     end
     
     def say(text)
