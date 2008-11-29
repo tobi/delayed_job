@@ -2,19 +2,21 @@ module Delayed
   class Worker
     SLEEP = 5
 
+    cattr_accessor :logger
+    self.logger = RAILS_DEFAULT_LOGGER if const_defined?(:RAILS_DEFAULT_LOGGER)
+
     def initialize(options={})
-      @quiet = options[:quiet]                                                             
+      @quiet = options[:quiet]
       Delayed::Job.min_priority = options[:min_priority] if options.has_key?(:min_priority)
       Delayed::Job.max_priority = options[:max_priority] if options.has_key?(:max_priority)
-    end                                                                          
+    end
 
     def start
       say "*** Starting job worker #{Delayed::Job.worker_name}"
 
       trap('TERM') { say 'Exiting...'; $exit = true }
       trap('INT')  { say 'Exiting...'; $exit = true }
-           
-      
+
       loop do
         result = nil
 
@@ -33,15 +35,15 @@ module Delayed
         end
 
         break if $exit
-      end           
-      
+      end
+
     ensure
       Delayed::Job.clear_locks!
     end
-    
+
     def say(text)
       puts text unless @quiet
-      RAILS_DEFAULT_LOGGER.info text
+      logger.info text if logger
     end
 
   end
