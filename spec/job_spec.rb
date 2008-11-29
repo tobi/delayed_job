@@ -283,7 +283,7 @@ describe Delayed::Job do
 
     it "should leave the queue in a consistent state and not run the job if locking fails" do
       SimpleJob.runs.should == 0     
-      @job.stub!(:lock_exclusively!).with(:any_args).once.and_raise(Delayed::Job::LockError)
+      @job.stub!(:lock_exclusively!).with(any_args).once.and_raise(Delayed::Job::LockError)
       Delayed::Job.should_receive(:find_available).once.and_return([@job])
       Delayed::Job.work_off(1)
       SimpleJob.runs.should == 0

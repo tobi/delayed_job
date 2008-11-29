@@ -185,7 +185,6 @@ module Delayed
       success, failure = 0, 0
 
       num.times do
-
         job = self.reserve do |j|
           begin
             j.perform
@@ -200,56 +199,37 @@ module Delayed
       end
 
       return [success, failure]
-    end          
-    
-    
+    end
+
     # Moved into its own method so that new_relic can trace it.
     def self.invoke_job(job, &block)
       block.call(job)
     end
 
-
-    private
+  private
 
     def deserialize(source)
-      attempt_to_load_file = true
+      handler = YAML.load(source) rescue nil
 
-      begin
-        handler = YAML.load(source) rescue nil
-        return handler if handler.respond_to?(:perform)
-
-        if handler.nil?
-          if source =~ ParseObjectFromYaml
-
-            # Constantize the object so that ActiveSupport can attempt
-            # its auto loading magic. Will raise LoadError if not successful.
-            attempt_to_load($1)
-
-            # If successful, retry the yaml.load
-            handler = YAML.load(source)
-            return handler if handler.respond_to?(:perform)
-          end
+      unless handler.respond_to?(:perform)
+        if handler.nil? && source =~ ParseObjectFromYaml
+          handler_class = $1
         end
-
-        if handler.is_a?(YAML::Object)
-
-          # Constantize the object so that ActiveSupport can attempt
-          # its auto loading magic. Will raise LoadError if not successful.
-          attempt_to_load(handler.class)
-
-          # If successful, retry the yaml.load
-          handler = YAML.load(source)
-          return handler if handler.respond_to?(:perform)
-        end
-
-        raise DeserializationError, 'Job failed to load: Unknown handler. Try to manually require the appropiate file.'
-
-      rescue TypeError, LoadError, NameError => e
-
-        raise DeserializationError, "Job failed to load: #{e.message}. Try to manually require the required file."
+        attempt_to_load(handler_class || handler.class)
+        handler = YAML.load(source)
       end
+
+      return handler if handler.respond_to?(:perform)
+
+      raise DeserializationError,
+        'Job failed to load: Unknown handler. Try to manually require the appropiate file.'
+    rescue TypeError, LoadError, NameError => e
+      raise DeserializationError,
+        "Job failed to load: #{e.message}. Try to manually require the required file."
     end
 
+    # Constantize the object so that ActiveSupport can attempt
+    # its auto loading magic. Will raise LoadError if not successful.
     def attempt_to_load(klass)
        klass.constantize
     end
@@ -258,7 +238,7 @@ module Delayed
       (ActiveRecord::Base.default_timezone == :utc) ? Time.now.utc : Time.now
     end
 
-    protected
+  protected
 
     def before_save
       self.run_at ||= self.class.db_time_now
