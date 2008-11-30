@@ -77,22 +77,16 @@ module Delayed
     end
 
     def self.enqueue(*args, &block)
-      if block_given?
-        priority = args.first || 0
-        run_at   = args.second
-        
-        Job.create(:payload_object => EvaledJob.new(&block), :priority => priority.to_i, :run_at => run_at)
-      else
-        object   = args.first
-        priority = args.second || 0
-        run_at   = args.third
-        
-        unless object.respond_to?(:perform)
-          raise ArgumentError, 'Cannot enqueue items which do not respond to perform'
-        end
+      object = block_given? ? EvaledJob.new(&block) : args.shift
 
-        Job.create(:payload_object => object, :priority => priority.to_i, :run_at => run_at)
+      unless object.respond_to?(:perform) || block_given?
+        raise ArgumentError, 'Cannot enqueue items which do not respond to perform'
       end
+    
+      priority = args.first || 0
+      run_at   = args.second
+
+      Job.create(:payload_object => object, :priority => priority.to_i, :run_at => run_at)
     end
 
     def self.find_available(limit = 5, max_run_time = MAX_RUN_TIME)
