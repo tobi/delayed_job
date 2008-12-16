@@ -15,8 +15,8 @@ module Delayed
     cattr_accessor :destroy_failed_jobs
     self.destroy_failed_jobs = true
 
-    # Every worker has a unique name which by default is the pid of the process. 
-    # There are some advantages to overriding this with something which survives worker retarts: 
+    # Every worker has a unique name which by default is the pid of the process.
+    # There are some advantages to overriding this with something which survives worker retarts:
     # Workers can safely resume working on tasks which are locked by themselves. The worker will assume that it crashed before.
     cattr_accessor :worker_name
     self.worker_name = "host:#{Socket.gethostname} pid:#{Process.pid}" rescue "pid:#{Process.pid}"
@@ -25,10 +25,10 @@ module Delayed
     NextTaskOrder       = 'priority DESC, run_at ASC'
 
     ParseObjectFromYaml = /\!ruby\/\w+\:([^\s]+)/
-    
+
     cattr_accessor :min_priority, :max_priority
     self.min_priority = nil
-    self.max_priority = nil    
+    self.max_priority = nil
 
     class LockError < StandardError
     end
@@ -45,8 +45,8 @@ module Delayed
     def payload_object
       @payload_object ||= deserialize(self['handler'])
     end
-    
-    def name    
+
+    def name
       @name ||= begin
         payload = payload_object
         if payload.respond_to?(:display_name)
@@ -90,32 +90,32 @@ module Delayed
     end
 
     def self.find_available(limit = 5, max_run_time = MAX_RUN_TIME)
-      
-      time_now = db_time_now          
-      
+
+      time_now = db_time_now
+
       sql = NextTaskSQL.dup
 
       conditions = [time_now, time_now - max_run_time, worker_name]
-      
+
       if self.min_priority
         sql << ' AND (priority >= ?)'
         conditions << min_priority
       end
-      
+
       if self.max_priority
         sql << ' AND (priority <= ?)'
-        conditions << max_priority         
+        conditions << max_priority
       end
 
-      conditions.unshift(sql)         
-            
+      conditions.unshift(sql)
+
       records = ActiveRecord::Base.silence do
         find(:all, :conditions => conditions, :order => NextTaskOrder, :limit => limit)
       end
-      
+
       records.sort { rand() }
-    end                                    
-      
+    end
+
     # Get the payload of the next job we can get an exclusive lock on.
     # If no jobs are left we return nil
     def self.reserve(max_run_time = MAX_RUN_TIME, &block)
@@ -136,7 +136,7 @@ module Delayed
         rescue LockError
           # We did not get the lock, some other worker process must have
           logger.warn "* [JOB] failed to aquire exclusive lock for #{job.name}"
-        rescue StandardError => e 
+        rescue StandardError => e
           job.reschedule e.message, e.backtrace
           log_exception(job, e)
           return job
@@ -154,16 +154,16 @@ module Delayed
         # We don't own this job so we will update the locked_by name and the locked_at
         self.class.update_all(["locked_at = ?, locked_by = ?", now, worker], ["id = ? and (locked_at is null or locked_at < ?)", id, (now - max_run_time.to_i)])
       else
-        # We already own this job, this may happen if the job queue crashes. 
+        # We already own this job, this may happen if the job queue crashes.
         # Simply resume and update the locked_at
         self.class.update_all(["locked_at = ?", now], ["id = ? and locked_by = ?", id, worker])
       end
       raise LockError.new("Attempted to aquire exclusive lock failed") unless affected_rows == 1
-      
+
       self.locked_at    = now
       self.locked_by    = worker
     end
-    
+
     def unlock
       self.locked_at    = nil
       self.locked_by    = nil
@@ -179,7 +179,6 @@ module Delayed
       success, failure = 0, 0
 
       num.times do
-
         job = self.reserve do |j|
           begin
             j.perform
@@ -194,56 +193,37 @@ module Delayed
       end
 
       return [success, failure]
-    end          
-    
-    
+    end
+
     # Moved into its own method so that new_relic can trace it.
     def self.invoke_job(job, &block)
       block.call(job)
     end
 
-
-    private
+  private
 
     def deserialize(source)
-      attempt_to_load_file = true
+      handler = YAML.load(source) rescue nil
 
-      begin
-        handler = YAML.load(source) rescue nil
-        return handler if handler.respond_to?(:perform)
-
-        if handler.nil?
-          if source =~ ParseObjectFromYaml
-
-            # Constantize the object so that ActiveSupport can attempt
-            # its auto loading magic. Will raise LoadError if not successful.
-            attempt_to_load($1)
-
-            # If successful, retry the yaml.load
-            handler = YAML.load(source)
-            return handler if handler.respond_to?(:perform)
-          end
+      unless handler.respond_to?(:perform)
+        if handler.nil? && source =~ ParseObjectFromYaml
+          handler_class = $1
         end
-
-        if handler.is_a?(YAML::Object)
-
-          # Constantize the object so that ActiveSupport can attempt
-          # its auto loading magic. Will raise LoadError if not successful.
-          attempt_to_load(handler.class)
-
-          # If successful, retry the yaml.load
-          handler = YAML.load(source)
-          return handler if handler.respond_to?(:perform)
-        end
-
-        raise DeserializationError, 'Job failed to load: Unknown handler. Try to manually require the appropiate file.'
-
-      rescue TypeError, LoadError, NameError => e
-
-        raise DeserializationError, "Job failed to load: #{e.message}. Try to manually require the required file."
+        attempt_to_load(handler_class || handler.class)
+        handler = YAML.load(source)
       end
+
+      return handler if handler.respond_to?(:perform)
+
+      raise DeserializationError,
+        'Job failed to load: Unknown handler. Try to manually require the appropiate file.'
+    rescue TypeError, LoadError, NameError => e
+      raise DeserializationError,
+        "Job failed to load: #{e.message}. Try to manually require the required file."
     end
 
+    # Constantize the object so that ActiveSupport can attempt
+    # its auto loading magic. Will raise LoadError if not successful.
     def attempt_to_load(klass)
        klass.constantize
     end
@@ -252,7 +232,7 @@ module Delayed
       (ActiveRecord::Base.default_timezone == :utc) ? Time.now.utc : Time.now
     end
 
-    protected
+  protected
 
     def before_save
       self.run_at ||= self.class.db_time_now
