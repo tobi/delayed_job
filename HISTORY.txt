@@ -1,2 +1,0 @@
-== 0.1.0 / 2008-11-28
-  * First of many versions

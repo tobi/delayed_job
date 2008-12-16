@@ -11,13 +11,6 @@ It is a direct extraction from Shopify where the job table is responsible for a 
 * updating solr, our search server, after product changes
 * batch imports 
 * spam checks 
-
-h2. Changes
-                                            
-* 1.7 Added failed_at column which can optionally be set after a certain amount of failed job attempts. By default failed job attempts are destroyed after about a month. 
-* 1.6 Renamed locked_until to locked_at. We now store when we start a given job instead of how long it will be locked by the worker. This allows us to get a reading on how long a job took to execute.                    
-* 1.5 Job runners can now be run in parallel. Two new database columns are needed: locked_until and locked_by. This allows us to use pessimistic locking, which enables us to run as many worker processes as we need to speed up queue processing.
-* 1.0 Initial release
             
 h2. Setup
             
@@ -74,3 +67,15 @@ You can also run by writing a simple @script/job_runner@, and invoking it extern
 h3. Cleaning up
 
 You can invoke @rake jobs:clear@ to delete all jobs in the queue.
+
+h3. Changes
+
+* 1.7.0: Added failed_at column which can optionally be set after a certain amount of failed job attempts. By default failed job attempts are destroyed after about a month. 
+
+* 1.6.0: Renamed locked_until to locked_at. We now store when we start a given job instead of how long it will be locked by the worker. This allows us to get a reading on how long a job took to execute.                    
+
+* 1.5.0: Job runners can now be run in parallel. Two new database columns are needed: locked_until and locked_by. This allows us to use   pessimistic locking instead of relying on row level locks. This enables us to run as many worker processes as we need to speed up queue processing.
+
+* 1.2.0: Added #send_later to Object for simpler job creation
+
+* 1.0.0: Initial release
