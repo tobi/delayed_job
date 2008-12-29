@@ -3,7 +3,11 @@ module Delayed
     SLEEP = 5
 
     cattr_accessor :logger
-    self.logger = RAILS_DEFAULT_LOGGER if const_defined?(:RAILS_DEFAULT_LOGGER)
+    self.logger = if defined?(Merb::Logger)
+                    Merb.logger
+                  elsif defined?(RAILS_DEFAULT_LOGGER)
+                    RAILS_DEFAULT_LOGGER
+                  end
 
     def initialize(options={})
       @quiet = options[:quiet]
