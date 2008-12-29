@@ -30,7 +30,7 @@ Gem::Specification.new do |s|
     lib/delayed/worker.rb
     lib/delayed_job.rb
     tasks/jobs.rake
-    tasks/merbtasks.rb
+    tasks/tasks.rb
   ]
   s.test_files = %w[
     spec/database.rb
