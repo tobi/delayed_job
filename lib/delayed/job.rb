@@ -1,4 +1,3 @@
-
 module Delayed
 
   class DeserializationError < StandardError
@@ -113,7 +112,7 @@ module Delayed
         find(:all, :conditions => conditions, :order => NextTaskOrder, :limit => limit)
       end
 
-      records.sort { rand() }
+      records.sort_by { rand() }
     end
 
     # Get the payload of the next job we can get an exclusive lock on.
