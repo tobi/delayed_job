@@ -83,7 +83,7 @@ module Delayed
       end
     
       priority = args.first || 0
-      run_at   = args.second
+      run_at   = args[1]
 
       Job.create(:payload_object => object, :priority => priority.to_i, :run_at => run_at)
     end
