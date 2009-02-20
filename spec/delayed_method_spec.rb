@@ -112,6 +112,21 @@ describe 'random ruby objects' do
     job.payload_object.method.should  == :read
     job.payload_object.args.should    == ["AR:Story:#{story.id}"]
     job.payload_object.perform.should == 'Epilog: Once upon...'
+  end                 
+  
+  it "should call send later on methods which are wrapped with handle_asynchronously" do
+    story = Story.create :text => 'Once upon...'
+  
+    Delayed::Job.count.should == 0
+  
+    story.whatever(1, 5)
+  
+    Delayed::Job.count.should == 1
+    job =  Delayed::Job.find(:first)
+    job.payload_object.class.should   == Delayed::PerformableMethod
+    job.payload_object.method.should  == :whatever_without_send_later
+    job.payload_object.args.should    == [1, 5]
+    job.payload_object.perform.should == 'Once upon...'
   end
 
 end

@@ -4,10 +4,10 @@ module Delayed
 
     cattr_accessor :logger
     self.logger = if defined?(Merb::Logger)
-                    Merb.logger
-                  elsif defined?(RAILS_DEFAULT_LOGGER)
-                    RAILS_DEFAULT_LOGGER
-                  end
+      Merb.logger
+    elsif defined?(RAILS_DEFAULT_LOGGER)
+      RAILS_DEFAULT_LOGGER
+    end
 
     def initialize(options={})
       @quiet = options[:quiet]
