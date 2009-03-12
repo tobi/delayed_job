@@ -184,11 +184,11 @@ describe Delayed::Job do
     end
 
     it "should not allow a second worker to get exclusive access" do
-      lambda { @job.lock_exclusively! 4.hours, 'worker2' }.should raise_error(Delayed::Job::LockError)
+      @job.lock_exclusively!(4.hours, 'worker2').should == false
     end
 
     it "should allow a second worker to get exclusive access if the timeout has passed" do
-      lambda { @job.lock_exclusively! 1.minute, 'worker2' }.should_not raise_error(Delayed::Job::LockError)
+      @job.lock_exclusively!(1.minute, 'worker2').should == true
     end      
     
     it "should be able to get access to the task if it was started more then max_age ago" do
@@ -283,7 +283,7 @@ describe Delayed::Job do
 
     it "should leave the queue in a consistent state and not run the job if locking fails" do
       SimpleJob.runs.should == 0     
-      @job.stub!(:lock_exclusively!).with(any_args).once.and_raise(Delayed::Job::LockError)
+      @job.stub!(:lock_exclusively!).with(any_args).once.and_return(false)
       Delayed::Job.should_receive(:find_available).once.and_return([@job])
       Delayed::Job.work_off(1)
       SimpleJob.runs.should == 0
@@ -291,21 +291,55 @@ describe Delayed::Job do
   
   end
   
-  context "while running alongside other workers with enqueued jobs, it" do 
+  context "while running alongside other workers that locked jobs, it" do
     before(:each) do
       Delayed::Job.worker_name = 'worker1'
-      Delayed::Job.create(:payload_object => SimpleJob.new, :locked_by => 'worker1', :locked_at => (Delayed::Job.db_time_now - 3.minutes))
-      Delayed::Job.create(:payload_object => SimpleJob.new, :locked_by => 'worker2', :locked_at => (Delayed::Job.db_time_now - 11.minutes))  
-      Delayed::Job.create(:payload_object => SimpleJob.new, :locked_by => 'worker1', :locked_at => (Delayed::Job.db_time_now - 2.minutes))
+      Delayed::Job.create(:payload_object => SimpleJob.new, :locked_by => 'worker1', :locked_at => (Delayed::Job.db_time_now - 1.minutes))
+      Delayed::Job.create(:payload_object => SimpleJob.new, :locked_by => 'worker2', :locked_at => (Delayed::Job.db_time_now - 1.minutes))
+      Delayed::Job.create(:payload_object => SimpleJob.new)
+      Delayed::Job.create(:payload_object => SimpleJob.new, :locked_by => 'worker1', :locked_at => (Delayed::Job.db_time_now - 1.minutes))
     end
-    
-    it "should only find jobs if the lock has expired reguardless of the worker" do
-      SimpleJob.runs.should == 0  
-      Delayed::Job.work_off(5)
-      SimpleJob.runs.should == 2 
-      Delayed::Job.find_available(5, 10.minutes).length.should == 1
+
+    it "should ingore locked jobs from other workers" do
+      Delayed::Job.worker_name = 'worker3'
+      SimpleJob.runs.should == 0
+      Delayed::Job.work_off
+      SimpleJob.runs.should == 1 # runs the one open job
     end
-    
+
+    it "should find our own jobs regardless of locks" do
+      Delayed::Job.worker_name = 'worker1'
+      SimpleJob.runs.should == 0
+      Delayed::Job.work_off
+      SimpleJob.runs.should == 3 # runs open job plus worker1 jobs that were already locked
+    end
+  end
+
+  context "while running with locked and expired jobs, it" do
+    before(:each) do
+      Delayed::Job.worker_name = 'worker1'
+      exp_time = Delayed::Job.db_time_now - (1.minutes + Delayed::Job::MAX_RUN_TIME)
+      Delayed::Job.create(:payload_object => SimpleJob.new, :locked_by => 'worker1', :locked_at => exp_time)
+      Delayed::Job.create(:payload_object => SimpleJob.new, :locked_by => 'worker2', :locked_at => (Delayed::Job.db_time_now - 1.minutes))
+      Delayed::Job.create(:payload_object => SimpleJob.new)
+      Delayed::Job.create(:payload_object => SimpleJob.new, :locked_by => 'worker1', :locked_at => (Delayed::Job.db_time_now - 1.minutes))
+    end
+
+    it "should only find unlocked and expired jobs" do
+      Delayed::Job.worker_name = 'worker3'
+      SimpleJob.runs.should == 0
+      Delayed::Job.work_off
+      SimpleJob.runs.should == 2 # runs the one open job and one expired job
+    end
+
+    it "should ignore locks when finding our own jobs" do
+      Delayed::Job.worker_name = 'worker1'
+      SimpleJob.runs.should == 0
+      Delayed::Job.work_off
+      SimpleJob.runs.should == 3 # runs open job plus worker1 jobs
+      # This is useful in the case of a crash/restart on worker1, but make sure multiple workers on the same host have unique names!
+    end
+
   end
   
 end

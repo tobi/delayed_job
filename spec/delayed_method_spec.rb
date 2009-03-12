@@ -78,13 +78,9 @@ describe 'random ruby objects' do
 
     Delayed::Job.count.should == 1
 
-    output = nil
+    Delayed::Job.reserve_and_run_one_job
 
-    Delayed::Job.reserve do |e|
-      output = e.perform
-    end
-
-    output.should == true
+    Delayed::Job.count.should == 0
 
   end
 
