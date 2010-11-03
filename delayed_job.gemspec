@@ -1,3 +1,5 @@
+# encoding: utf-8
+
 #version = File.read('README.textile').scan(/^\*\s+([\d\.]+)/).flatten
 
 Gem::Specification.new do |s|
