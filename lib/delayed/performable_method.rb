@@ -38,7 +38,7 @@ module Delayed
 
     def dump(arg)
       case arg
-      when Class              then class_to_string(arg)
+      when Class, Module      then class_to_string(arg)
       when ActiveRecord::Base then ar_to_string(arg)
       else arg
       end
