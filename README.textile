@@ -99,7 +99,16 @@ You can also run by writing a simple @script/job_runner@, and invoking it extern
 </code></pre>
 
 Workers can be running on any computer, as long as they have access to the database and their clock is in sync. You can even
-run multiple workers on per computer, but you must give each one a unique name. (TODO: put in an example)
+run multiple workers on per computer, but you must give each one a unique name:
+
+<pre><code>
+  3.times do |n|
+    worker = Delayed::Worker.new
+    worker.name = 'worker-' + n.to_s
+    worker.start
+  end	
+</code></pre>
+
 Keep in mind that each worker will check the database at least every 5 seconds.
 
 Note: The rake task will exit if the database has any network connectivity problems.
