@@ -16,7 +16,7 @@ h2. Setup
 
 The library evolves around a delayed_jobs table which can be created by using:
 <pre><code>
-  script/generate delayed_job_migration
+  script/generate delayed_job
 </code></pre>
 
 The created table looks as follows: 
