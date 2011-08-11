@@ -11,6 +11,12 @@ class RandomRubyObject
   end
 end
 
+module RandomModule
+  def self.say_hello
+    'hello'
+  end
+end
+
 class ErrorObject
 
   def throw
@@ -110,6 +116,14 @@ describe 'random ruby objects' do
     job.payload_object.perform.should == 'Epilog: Once upon...'
   end                 
   
+  it "should store the object as string if it's a module" do
+    RandomModule.send_later(:say_hello)
+    job = Delayed::Job.find(:first)
+    job.payload_object.method.should  == :say_hello
+    job.payload_object.object.should  == "CLASS:RandomModule"
+    job.payload_object.perform.should == 'hello'
+  end
+
   it "should call send later on methods which are wrapped with handle_asynchronously" do
     story = Story.create :text => 'Once upon...'
   
